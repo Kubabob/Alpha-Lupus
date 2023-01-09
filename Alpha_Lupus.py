@@ -18,9 +18,17 @@ import os
 import discord
 from discord.ext import commands
 from discord.ext import tasks
+from discord import app_commands
 from dotenv import load_dotenv
 import aiohttp
+import random as r
+from itertools import cycle
+import time
+import asyncio
+import requests
+from bs4 import BeautifulSoup
 
+#openai.api_key = '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'
 
 #ZAŁADOWANIE TOKENÓW Z .env
 load_dotenv()
@@ -36,15 +44,57 @@ intents = discord.Intents.all()
 bot = commands.Bot(command_prefix='!', intents=intents)
 bot.remove_command('help')
 
+#tree = app_commands.CommandTree(bot)
+
 
 #ID GILDII
-guild_id = 1058493924089548810
+guild_id = 1046717079249768519
 
 
 #ID KANAŁÓW
-przywitanie_id = 1058535484344766474
-regulamin_id = 1058543121824227389
-admin_channel_id = 1059491305522221086
+przywitanie_id = 1046717746211209267
+regulamin_id = 1046725335422599208
+admin_channel_id = 1046725335422599209
+ogloszenia_id = 1046725510232809572
+admin_bot_id = 1060904715065495552
+
+bot_status = cycle(['!help', 'KNALT', 'Smacznej Kawusi'])
+@tasks.loop(seconds=10)
+async def change_status():
+    await bot.change_presence(activity=discord.Game(next(bot_status)))
+
+
+@tasks.loop(minutes=5)
+async def ps_get_info():
+    guild = bot.get_guild(guild_id)
+
+    login_url = 'https://ps.ug.edu.pl/login.web'
+
+    payload = {
+        'licznik' : 's',
+        'login' : '285665',
+        'pass' : 'Szotland12'
+    }
+
+    response = requests.Session()
+    web_html = response.post(login_url, data=payload).text
+    parsed_html = BeautifulSoup(web_html, 'html.parser')
+    ogloszenia_ilosc = parsed_html.find(id='ilNieprzeczytanychOgloszen').text
+
+    for channel in guild.channels:
+        if channel.id == ogloszenia_id:
+            if ogloszenia_ilosc != '0' and czy_wyslano == False:
+                await channel.send(f'Na portalu studenta czeka na nas {ogloszenia_ilosc} ogłoszeń\n'
+                                f'https://ps.ug.edu.pl/login.web')
+                czy_wyslano = True
+            elif ogloszenia_ilosc != '0':
+                czy_wyslano = False
+                #print('Brak nowych ogłoszeń')
+
+        
+'''@tree.command(name='TreeTest', description='Test drzewa komenda', guild=discord.object(guild_id))
+async def DrzewoTest(interaction):
+    await interaction.response.send_message('TestTree')'''
 
 
 #ROZPOCZĘCIE DZIAŁANIA BOTA
@@ -60,6 +110,10 @@ async def on_ready():
     print(f'{bot.user.name} zawył!')
     print(f'członkowie: {[member.name for member in guild.members]}\nilość członkow: {guild.member_count}')
     print(f'role: {roles}')
+    change_status.start()
+    ps_get_info.start()
+
+    #await tree.sync(guild=discord.object(guild_id))
 
        
 #PRZYŁĄCZENIE CZŁONKA
@@ -113,19 +167,53 @@ async def help(ctx):
     help_embed.set_author(name='!help')
     help_embed.add_field(
         name='!ping',
-        value='Grasz w pingla z botem'
+        value='Grasz w pingla z botem',
+        inline=False
         )
     help_embed.add_field(
         name='!dog',
-        value='Pokazuje pieska'
+        value='Pokazuje pieska',
+        inline=False
         )
     help_embed.add_field(
         name='!cat',
-        value='Pokazuje kotka'
+        value='Pokazuje kotka',
+        inline=False
     )
     help_embed.add_field(
-        name='!echo',
-        value='Daj mi coś powiedzieć'
+        name='!echo [co chcesz żebym powiedział]',
+        value='Daj mi coś powiedzieć',
+        inline=False
+    )
+    help_embed.add_field(
+        name='!rps lub !rock_paper_scissors lub !pkn',
+        value='Papier/Kamien/Norzyce => Kamień, Papier, Nożyce z botem',
+        inline=False
+    )
+    help_embed.add_field(
+        name='!rock',
+        value='Kamień',
+        inline=False
+    )
+    help_embed.add_field(
+        name='!paper',
+        value='Papier',
+        inline=False
+    )
+    help_embed.add_field(
+        name="!scissors",
+        value='Nożyce',
+        inline=False
+    )
+    help_embed.add_field(
+        name='!moneta lub !rm',
+        value='Rzut monetą',
+        inline=False
+    )
+    help_embed.add_field(
+        name='!roll lub !r [[ilość_kostek]d[ilość_ścianek]]',
+        value='Rzut kostką',
+        inline=False
     )
     
 
@@ -179,8 +267,9 @@ async def ping(ctx):
 
 #BOT PISZE TO CO TY
 @bot.command()
-async def echo(ctx, text):
-    await ctx.channel.send(text)
+async def echo(ctx, *text):
+    final_text = ' '.join(*text)
+    await ctx.channel.send(final_text)
 
 
 #BOT WYSWIETLA LOSOWEGO KOTA
@@ -203,6 +292,165 @@ async def dog(ctx):
                 await ctx.channel.send(js['url'])
 
 #cute - animal
+
+
+def rps_random():
+    moves = ['ROCK', 'PAPER', 'SCISSORS']
+    return r.choice(moves)
+
+def rps_game(player, bot):
+    if player == bot:
+        return "Tie"
+    elif player == 'ROCK':
+        if bot == 'PAPER':
+            return 'Lose'
+        else:
+            return 'Win'
+    elif player == 'PAPER':
+        if bot == 'SCISSORS':
+            return 'Lose'
+        else:
+            return 'Win'
+    elif player == 'SCISSORS':
+        if bot == 'ROCK':
+            return 'Lose'
+        else:
+            return 'Win'
+    else:
+        return 'error'
+
+@bot.command()
+async def rock(ctx):
+    bot=rps_random()
+    wynik = rps_game(player='ROCK', bot=bot)
+    if wynik == 'Tie':
+        await ctx.channel.send(bot)
+        await tasks.asyncio.sleep(1)
+        await ctx.channel.send('Remis! Spróbujmy jeszcze raz!')
+    elif wynik == 'Lose':
+        await ctx.channel.send(bot)
+        await tasks.asyncio.sleep(1)
+        await ctx.channel.send('Przegrałeś, życzę więcej szczęścia następnym razem :wink:')
+    else:
+        await ctx.channel.send(bot)
+        await tasks.asyncio.sleep(1)
+        await ctx.channel.send('Wygrałeś!')
+        await tasks.asyncio.sleep(1)
+        await ctx.channel.send('Tym razem :upside_down:')
+
+@bot.command()
+async def paper(ctx):
+    bot=rps_random()
+    wynik = rps_game(player='PAPER', bot=bot)
+    if wynik == 'Tie':
+        await ctx.channel.send(bot)
+        await tasks.asyncio.sleep(1)
+        await ctx.channel.send('Remis! Spróbujmy jeszcze raz!')
+    elif wynik == 'Lose':
+        await ctx.channel.send(bot)
+        await tasks.asyncio.sleep(1)
+        await ctx.channel.send('Przegrałeś, życzę więcej szczęścia następnym razem :wink:')
+    else:
+        await ctx.channel.send(bot)
+        await tasks.asyncio.sleep(1)
+        await ctx.channel.send('Wygrałeś!')
+        await tasks.asyncio.sleep(1)
+        await ctx.channel.send('Tym razem :upside_down:')
+
+@bot.command()
+async def scissors(ctx):
+    bot=rps_random()
+    wynik = rps_game(player='SCISSORS', bot=bot)
+    if wynik == 'Tie':
+        await ctx.channel.send(bot)
+        await tasks.asyncio.sleep(1)
+        await ctx.channel.send('Remis! Spróbujmy jeszcze raz!')
+    elif wynik == 'Lose':
+        await ctx.channel.send(bot)
+        await tasks.asyncio.sleep(1)
+        await ctx.channel.send('Przegrałeś, życzę więcej szczęścia następnym razem :wink:')
+    else:
+        await ctx.channel.send(bot)
+        await tasks.asyncio.sleep(1)
+        await ctx.channel.send('Wygrałeś!')
+        await tasks.asyncio.sleep(1)
+        await ctx.channel.send('Tym razem :upside_down:')
+
+@bot.command()
+async def chat(ctx, *args):
+    prompt = ' '.join(args)
+    response = openai.Completion.create(
+        model='text-davinci-003',
+        prompt=prompt,
+        max_tokens=1024,
+        temperature=0.5
+    )
+    await ctx.message.channel.send(response.get("text"))
+
+@bot.command(aliases=['rps', 'pkn'])
+async def rock_paper_scissors(ctx, usr_msg: str):
+    usr_msg = usr_msg.lower()
+    if usr_msg == 'kamień':
+        usr_msg = 'kamien'
+    elif usr_msg == 'nożyce':
+        usr_msg = 'nozyce'
+
+    opcje = ['papier', 'kamien', 'nozyce']
+    losowanko = r.choice(opcje)
+
+    if usr_msg == losowanko:
+        await ctx.send(f'{losowanko.upper()}!\nAjaj, remis. Jeszcze raz?')
+    elif usr_msg == 'kamien':
+        if losowanko == 'papier':
+            await ctx.send(f'{losowanko.upper()}!\nWygrałeeem! Nooob ahhahahahxXDDXDXdxD11!1!!!1')
+        else:
+            await ctx.send(f'{losowanko.upper()}!\nNieeee...! Pokonałeś mnie :CCCC')
+    elif usr_msg == 'papier':
+        if losowanko == 'nozyce':
+            await ctx.send(f'{losowanko.upper()}!\nWygrałeeem! Nooob ahhahahahxXDDXDXdxD11!1!!!1')
+        else:
+            await ctx.send(f'{losowanko.upper()}!\nNieeee...! Pokonałeś mnie :CCCC')
+    elif usr_msg == 'nozyce':
+        if losowanko == 'kamien':
+            await ctx.send(f'{losowanko.upper()}!\nWygrałeeem! Nooob ahhahahahxXDDXDXdxD11!1!!!1')
+        else:
+            await ctx.send(f'{losowanko.upper()}!\nNieeee...! Pokonałeś mnie :CCCC')
+    else:
+        await ctx.send('Umiesz pisać???')
+
+@bot.command(aliases=['r'])
+async def roll(ctx, throw: str):
+    times, dice = map(int, throw.split('d'))
+    if dice > 100:
+        if times > 200:
+            await ctx.send('Mam tylko 200 kości!\nA największa kostka to d100')
+        else:
+            await ctx.send('Największa kostka to d100!')
+    elif times > 200:
+        await ctx.send(f'Mam tylko 200 kostek d{dice}!')
+    else:
+        rolls = [r.randint(1, dice) for i in range(times)]
+        odp = ''
+        last_roll = rolls.pop(-1)
+        try:
+            for i in range(-1, times):
+                odp += f'{str(rolls[i+1])}, '
+        except Exception:
+            odp += f'{last_roll}\nSuma wynosi: {sum(rolls) + last_roll}'
+
+    
+        await ctx.send(odp)
+        rolls.append(last_roll)
+        await ctx.send(f'Najwyższa wartość: {max(rolls)}')
+
+@bot.command(aliases=['rm'])
+async def moneta(ctx):
+    moneta = r.randint(0, 1)
+    if moneta == 0:
+        await ctx.channel.send('ORZEŁ')
+    else:
+        await ctx.channel.send('RESZKA')
+
 
 
 #URUCHOMIENIE BOTA
