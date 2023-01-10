@@ -18,7 +18,6 @@ import os
 import discord
 from discord.ext import commands
 from discord.ext import tasks
-from discord import app_commands
 from dotenv import load_dotenv
 import aiohttp
 import random as r
@@ -41,10 +40,8 @@ intents = discord.Intents.all()
 
 
 #UTWORZENIE BOTA
-bot = commands.Bot(command_prefix='!', intents=intents)
+bot = commands.Bot(command_prefix='/', intents=intents)
 bot.remove_command('help')
-
-#tree = app_commands.CommandTree(bot)
 
 
 #ID GILDII
@@ -58,7 +55,8 @@ admin_channel_id = 1046725335422599209
 ogloszenia_id = 1046725510232809572
 admin_bot_id = 1060904715065495552
 
-bot_status = cycle(['!help', 'KNALT', 'Smacznej Kawusi'])
+
+bot_status = cycle(['/help', 'KNALT', 'Smacznej Kawusi'])
 @tasks.loop(seconds=10)
 async def change_status():
     await bot.change_presence(activity=discord.Game(next(bot_status)))
@@ -91,11 +89,6 @@ async def ps_get_info():
                 czy_wyslano = False
                 #print('Brak nowych ogłoszeń')
 
-        
-'''@tree.command(name='TreeTest', description='Test drzewa komenda', guild=discord.object(guild_id))
-async def DrzewoTest(interaction):
-    await interaction.response.send_message('TestTree')'''
-
 
 #ROZPOCZĘCIE DZIAŁANIA BOTA
 @bot.event
@@ -113,7 +106,7 @@ async def on_ready():
     change_status.start()
     ps_get_info.start()
 
-    #await tree.sync(guild=discord.object(guild_id))
+    await bot.tree.sync()
 
        
 #PRZYŁĄCZENIE CZŁONKA
@@ -159,89 +152,112 @@ async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
         await payload.member.add_roles(rola_czlonek)
 
 
-#HELP @EVERYONE
-@bot.command()
-async def help(ctx):
-    help_embed = discord.Embed(color=discord.Colour.purple())
+@bot.tree.command(name='help', description='/help [komenda]')
+async def help(interaction: discord.Interaction, komenda : str = 'all'):
+    if komenda == 'all':
+        help_embed = discord.Embed(color=discord.Colour.purple())
 
-    help_embed.set_author(name='!help')
-    help_embed.add_field(
-        name='!ping',
-        value='Grasz w pingla z botem',
-        inline=False
+        help_embed.set_author(name='/help')
+        help_embed.add_field(
+            name='/ping',
+            value='Grasz w pingla z botem',
+            inline=False
+            )
+        help_embed.add_field(
+            name='/dog',
+            value='Pokazuje pieska',
+            inline=False
+            )
+        help_embed.add_field(
+            name='/cat',
+            value='Pokazuje kotka',
+            inline=False
         )
-    help_embed.add_field(
-        name='!dog',
-        value='Pokazuje pieska',
-        inline=False
+        help_embed.add_field(
+            name='/echo [co chcesz żebym powiedział]',
+            value='Daj mi coś powiedzieć',
+            inline=False
         )
-    help_embed.add_field(
-        name='!cat',
-        value='Pokazuje kotka',
-        inline=False
-    )
-    help_embed.add_field(
-        name='!echo [co chcesz żebym powiedział]',
-        value='Daj mi coś powiedzieć',
-        inline=False
-    )
-    help_embed.add_field(
-        name='!rps lub !rock_paper_scissors lub !pkn',
-        value='Papier/Kamien/Norzyce => Kamień, Papier, Nożyce z botem',
-        inline=False
-    )
-    help_embed.add_field(
-        name='!rock',
-        value='Kamień',
-        inline=False
-    )
-    help_embed.add_field(
-        name='!paper',
-        value='Papier',
-        inline=False
-    )
-    help_embed.add_field(
-        name="!scissors",
-        value='Nożyce',
-        inline=False
-    )
-    help_embed.add_field(
-        name='!moneta lub !rm',
-        value='Rzut monetą',
-        inline=False
-    )
-    help_embed.add_field(
-        name='!roll lub !r [[ilość_kostek]d[ilość_ścianek]]',
-        value='Rzut kostką',
-        inline=False
-    )
-    
-
-    await ctx.channel.send(embed=help_embed)
-
+        help_embed.add_field(
+            name='/rps [papier/kamien/nożyce] lub /rock_paper_scissors lub /pkn',
+            value='Papier/Kamien/Nozyce => Kamień, Papier, Nożyce z botem',
+            inline=False
+        )
+        help_embed.add_field(
+            name='/rock',
+            value='Kamień',
+            inline=False
+        )
+        help_embed.add_field(
+            name='/paper',
+            value='Papier',
+            inline=False
+        )
+        help_embed.add_field(
+            name="/scissors",
+            value='Nożyce',
+            inline=False
+        )
+        help_embed.add_field(
+            name='/moneta lub /rm',
+            value='Rzut monetą',
+            inline=False
+        )
+        help_embed.add_field(
+            name='/roll lub /r [ilość_kostek] [ilość_ścianek]',
+            value='Rzut kostką',
+            inline=False
+        )
+        await interaction.response.send_message(embed=help_embed, ephemeral=True)
+    elif komenda == 'ping':
+        await interaction.response.send_message(f'Zagraj w ping ponga z botem', ephemeral=True)
+    elif komenda == 'dog':
+        await interaction.response.send_message(f'Pokazuje pieska', ephemeral=True)
+    elif komenda == 'cat':
+        await interaction.response.send_message(f'Pokazuje kotka', ephemeral=True)
+    elif komenda == 'echo':
+        await interaction.response.send_message(f'/echo [co chcesz żeby bot napisał]', ephemeral=True)
+    elif komenda == 'rps':
+        await interaction.response.send_message(f'/rps [papier/kamien/nożyce\nZagraj z botem w papier kamień nożyce', ephemeral=True)
+    elif komenda == 'rock':
+        await interaction.response.send_message(f'Rzucasz kamień', ephemeral=True)
+    elif komenda == 'paper':
+        await interaction.response.send_message(f'Pokazujesz papier', ephemeral=True)
+    elif komenda == 'scissors':
+        await interaction.response.send_message(f'Wyjmujesz nożyce', ephemeral=True)
+    elif komenda == 'moneta' or komenda == 'rm':
+        await interaction.response.send_message(f'Rzut monetą', ephemeral=True)
+    elif komenda == 'roll' or komenda == 'r':
+        await interaction.response.send_message(f'/r [ilość_kostek] [ilość_ścianek]', ephemeral=True)
+    else:
+        await interaction.response.send_message(f'Nie znam takiej komendy', ephemeral=True)
 
 #HELP @ADMIN
-@bot.command(pass_context=True)
-async def help_admin(ctx):
-    admin_channel = bot.get_channel(admin_channel_id)
+@bot.tree.command(name='help_admin', description='/help_admin [komenda]')
+@commands.has_permissions(manage_channels=True)
+async def help_admin(interaction: discord.Interaction, komenda : str = 'all'):
+    
 
-    help_admin_embed = discord.Embed(color=discord.Colour.purple())
+    if komenda == 'all':
+        help_admin_embed = discord.Embed(color=discord.Colour.purple())
 
-    help_admin_embed.set_author(name='!help_admin')
-    help_admin_embed.add_field(
-        name='!regulamin_maker',
+        help_admin_embed.set_author(name='/help_admin')
+        help_admin_embed.add_field(
+        name='/regulamin_maker',
         value='Służy do stworzenia regulaminu'
         )
-
-    await admin_channel.send(embed=help_admin_embed)
+        await interaction.response.send_message(embed=help_admin_embed, ephemeral=True)
+    elif komenda == 'regulamin_maker':
+        await interaction.response.send_message(f'Służy do stworzenia regulaminu', ephemeral=True)
+    else:
+        await interaction.response.send_message(f'Nie znam takiej komendy', ephemeral=True)
 
 
 #TWORZENIE REGULAMINU
-@bot.command()
+@bot.tree.command(name='regulamin_maker', description='Słuzy do stworzenia regulaminu')
 @commands.has_permissions(manage_channels=True)
-async def regulamin_maker(ctx):
-    await ctx.message.delete()
-    regulamin_message = await ctx.channel.send(regulamin)
+async def regulamin_maker(interaction: discord.Interaction):
+    regulamin_message = await interaction.channel.send(regulamin)
     await regulamin_message.add_reaction('✅')
 
 
@@ -253,130 +269,115 @@ async def regulamin_maker_error(ctx, error):
         await ctx.channel.send(error_text)
 
 
-'''@bot.command(pass_context = True)
+'''@bot.komenda(pass_context = True)
 async def clear(ctx):
     print(f'{ctx.channel_id}')
     await ctx.channel.delete_messages(ctx.channel.messages)
     '''
 
 #GRA W PING PONGA
-@bot.command()
-async def ping(ctx):
-    await ctx.channel.send("pong :ping_pong:")
+@bot.tree.command(name='ping', description='zwraca PONG')
+async def ping(interaction: discord.Interaction):
+    await interaction.response.send_message("pong :ping_pong:")
+
+@bot.tree.command(name='slash', description='test')
+async def slash(interaction: discord.Interaction, number: int, string: str):
+    await interaction.response.send_message(f'Modify {number=} {string=}', ephemeral=True)
 
 
 #BOT PISZE TO CO TY
-@bot.command()
-async def echo(ctx, *text):
-    final_text = ' '.join(*text)
-    await ctx.channel.send(final_text)
+@bot.tree.command(name='echo', description='Zmuś bota do napisania czegoś')
+async def echo(interaction: discord.Interaction, text: str):
+    await interaction.response.send_message(f'{text}')
 
 
 #BOT WYSWIETLA LOSOWEGO KOTA
-@bot.command()
-async def cat(ctx):
+@bot.tree.command(name='kot', description='Pokazuje kota')
+async def kot(interaction: discord.Interaction):
     async with aiohttp.ClientSession() as session:
         async with session.get('http://aws.random.cat/meow') as r:
             if r.status == 200:
                 js = await r.json()
-                await ctx.channel.send(js['file'])
+                await interaction.response.send_message(js['file'])
 
 
 #BOT WYSWIETLA LOSOWEGO PSA
-@bot.command()
-async def dog(ctx):
+@bot.tree.command(name='pies', description='Pokazuje psa')
+async def pies(interaction: discord.Interaction):
     async with aiohttp.ClientSession() as session:
         async with session.get('https://random.dog/woof.json') as r:
             if r.status == 200:
                 js = await r.json()
-                await ctx.channel.send(js['url'])
+                await interaction.response.send_message(js['url'])
 
 #cute - animal
 
 
 def rps_random():
-    moves = ['ROCK', 'PAPER', 'SCISSORS']
+    moves = ['KAMIEN', 'PAPIER', 'NOZYCE']
     return r.choice(moves)
 
 def rps_game(player, bot):
     if player == bot:
         return "Tie"
-    elif player == 'ROCK':
-        if bot == 'PAPER':
+    elif player == 'KAMIEN':
+        if bot == 'PAPIER':
             return 'Lose'
         else:
             return 'Win'
-    elif player == 'PAPER':
-        if bot == 'SCISSORS':
+    elif player == 'PAPIER':
+        if bot == 'NOZYCE':
             return 'Lose'
         else:
             return 'Win'
-    elif player == 'SCISSORS':
-        if bot == 'ROCK':
+    elif player == 'NOZYCE':
+        if bot == 'KAMIEN':
             return 'Lose'
         else:
             return 'Win'
     else:
         return 'error'
 
-@bot.command()
-async def rock(ctx):
+@bot.tree.command(name='kamień', description='Rzucasz kamień')
+async def kamień(interaction: discord.Interaction):
     bot=rps_random()
     wynik = rps_game(player='ROCK', bot=bot)
     if wynik == 'Tie':
-        await ctx.channel.send(bot)
-        await tasks.asyncio.sleep(1)
-        await ctx.channel.send('Remis! Spróbujmy jeszcze raz!')
+        await interaction.response.send_message(f'{bot}\nRemis! Spróbujmy jeszcze raz!', ephemeral=True)
     elif wynik == 'Lose':
-        await ctx.channel.send(bot)
-        await tasks.asyncio.sleep(1)
-        await ctx.channel.send('Przegrałeś, życzę więcej szczęścia następnym razem :wink:')
+        await interaction.response.send_message(f'{bot}\nPrzegrałeś, życzę więcej szczęścia następnym razem :wink:', ephemeral=True)
     else:
-        await ctx.channel.send(bot)
+        await interaction.response.send_message(f'{bot}\nWygrałeś!', ephemeral=True)
         await tasks.asyncio.sleep(1)
-        await ctx.channel.send('Wygrałeś!')
-        await tasks.asyncio.sleep(1)
-        await ctx.channel.send('Tym razem :upside_down:')
+        await interaction.channel.send('Tym razem :upside_down:', ephemeral=True)
 
-@bot.command()
-async def paper(ctx):
+@bot.tree.command(name='papier', description='Pokazujesz papier')
+async def papier(interaction: discord.Interaction):
     bot=rps_random()
-    wynik = rps_game(player='PAPER', bot=bot)
+    wynik = rps_game(player='PAPIER', bot=bot)
     if wynik == 'Tie':
-        await ctx.channel.send(bot)
-        await tasks.asyncio.sleep(1)
-        await ctx.channel.send('Remis! Spróbujmy jeszcze raz!')
+        await interaction.response.send_message(f'{bot}\nRemis! Spróbujmy jeszcze raz!', ephemeral=True)
     elif wynik == 'Lose':
-        await ctx.channel.send(bot)
-        await tasks.asyncio.sleep(1)
-        await ctx.channel.send('Przegrałeś, życzę więcej szczęścia następnym razem :wink:')
+        await interaction.response.send_message(f'{bot}\nPrzegrałeś, życzę więcej szczęścia następnym razem :wink:', ephemeral=True)
     else:
-        await ctx.channel.send(bot)
+        await interaction.response.send_message(f'{bot}\nWygrałeś!', ephemeral=True)
         await tasks.asyncio.sleep(1)
-        await ctx.channel.send('Wygrałeś!')
-        await tasks.asyncio.sleep(1)
-        await ctx.channel.send('Tym razem :upside_down:')
+        await interaction.channel.send('Tym razem :upside_down:', ephemeral=True)
 
-@bot.command()
-async def scissors(ctx):
+@bot.tree.command(name='nozyce', description='Wyjmujesz nozyce')
+async def nozyce(interaction: discord.Interaction):
     bot=rps_random()
-    wynik = rps_game(player='SCISSORS', bot=bot)
+    wynik = rps_game(player='NOZYCE', bot=bot)
     if wynik == 'Tie':
-        await ctx.channel.send(bot)
-        await tasks.asyncio.sleep(1)
-        await ctx.channel.send('Remis! Spróbujmy jeszcze raz!')
+        await interaction.response.send_message(f'{bot}\nRemis! Spróbujmy jeszcze raz!', ephemeral=True)
     elif wynik == 'Lose':
-        await ctx.channel.send(bot)
-        await tasks.asyncio.sleep(1)
-        await ctx.channel.send('Przegrałeś, życzę więcej szczęścia następnym razem :wink:')
+        await interaction.response.send_message(f'{bot}\nPrzegrałeś, życzę więcej szczęścia następnym razem :wink:', ephemeral=True)
     else:
-        await ctx.channel.send(bot)
+        await interaction.response.send_message(f'{bot}\nWygrałeś!', ephemeral=True)
         await tasks.asyncio.sleep(1)
-        await ctx.channel.send('Wygrałeś!')
-        await tasks.asyncio.sleep(1)
-        await ctx.channel.send('Tym razem :upside_down:')
+        await interaction.channel.send('Tym razem :upside_down:', ephemeral=True)
 
-@bot.command()
+'''@bot.komenda()
 async def chat(ctx, *args):
     prompt = ' '.join(args)
     response = openai.Completion.create(
@@ -385,72 +386,71 @@ async def chat(ctx, *args):
         max_tokens=1024,
         temperature=0.5
     )
-    await ctx.message.channel.send(response.get("text"))
+    await ctx.message.channel.send(response.get("text"))'''
 
-@bot.command(aliases=['rps', 'pkn'])
-async def rock_paper_scissors(ctx, usr_msg: str):
-    usr_msg = usr_msg.lower()
-    if usr_msg == 'kamień':
-        usr_msg = 'kamien'
-    elif usr_msg == 'nożyce':
-        usr_msg = 'nozyce'
+@bot.tree.command(name='rps', description='Zagraj w papier kamień nozyce')
+async def rps(interaction: discord.Interaction, wybor: str):
+    wybor = wybor.lower()
+    if wybor == 'kamień':
+        wybor = 'kamien'
+    elif wybor == 'nożyce':
+        wybor = 'nozyce'
 
     opcje = ['papier', 'kamien', 'nozyce']
     losowanko = r.choice(opcje)
 
-    if usr_msg == losowanko:
-        await ctx.send(f'{losowanko.upper()}!\nAjaj, remis. Jeszcze raz?')
-    elif usr_msg == 'kamien':
+    if wybor == losowanko:
+        await interaction.response.send_message(f'{losowanko.upper()}!\nAjaj, remis. Jeszcze raz?', ephemeral=True)
+    elif wybor == 'kamien':
         if losowanko == 'papier':
-            await ctx.send(f'{losowanko.upper()}!\nWygrałeeem! Nooob ahhahahahxXDDXDXdxD11!1!!!1')
+            await interaction.response.send_message(f'{losowanko.upper()}!\nWygrałeeem! Nooob ahhahahahxXDDXDXdxD11!1!!!1', ephemeral=True)
         else:
-            await ctx.send(f'{losowanko.upper()}!\nNieeee...! Pokonałeś mnie :CCCC')
-    elif usr_msg == 'papier':
+            await interaction.response.send_message(f'{losowanko.upper()}!\nNieeee...! Pokonałeś mnie :CCCC', ephemeral=True)
+    elif wybor == 'papier':
         if losowanko == 'nozyce':
-            await ctx.send(f'{losowanko.upper()}!\nWygrałeeem! Nooob ahhahahahxXDDXDXdxD11!1!!!1')
+            await interaction.response.send_message(f'{losowanko.upper()}!\nWygrałeeem! Nooob ahhahahahxXDDXDXdxD11!1!!!1', ephemeral=True)
         else:
-            await ctx.send(f'{losowanko.upper()}!\nNieeee...! Pokonałeś mnie :CCCC')
-    elif usr_msg == 'nozyce':
+            await interaction.response.send_message(f'{losowanko.upper()}!\nNieeee...! Pokonałeś mnie :CCCC', ephemeral=True)
+    elif wybor == 'nozyce':
         if losowanko == 'kamien':
-            await ctx.send(f'{losowanko.upper()}!\nWygrałeeem! Nooob ahhahahahxXDDXDXdxD11!1!!!1')
+            await interaction.response.send_message(f'{losowanko.upper()}!\nWygrałeeem! Nooob ahhahahahxXDDXDXdxD11!1!!!1', ephemeral=True)
         else:
-            await ctx.send(f'{losowanko.upper()}!\nNieeee...! Pokonałeś mnie :CCCC')
+            await interaction.response.send_message(f'{losowanko.upper()}!\nNieeee...! Pokonałeś mnie :CCCC', ephemeral=True)
     else:
-        await ctx.send('Umiesz pisać???')
+        await interaction.response.send_message('Umiesz pisać???', ephemeral=True)
 
-@bot.command(aliases=['r'])
-async def roll(ctx, throw: str):
-    times, dice = map(int, throw.split('d'))
-    if dice > 100:
-        if times > 200:
-            await ctx.send('Mam tylko 200 kości!\nA największa kostka to d100')
+@bot.tree.command(name='roll', description='Rzuć x kostkami y ściennymi')
+async def roll(interaction: discord.Interaction, kostki: int, scianki: int):
+    if scianki > 100:
+        if kostki > 200:
+            await interaction.response.send_message('Mam tylko 200 kości!\nA największa kostka to d100', ephemeral=True)
         else:
-            await ctx.send('Największa kostka to d100!')
-    elif times > 200:
-        await ctx.send(f'Mam tylko 200 kostek d{dice}!')
+            await interaction.response.send_message('Największa kostka to d100!', ephemeral=True)
+    elif kostki > 200:
+        await interaction.response.send_message(f'Mam tylko 200 kostek d{scianki}!', ephemeral=True)
     else:
-        rolls = [r.randint(1, dice) for i in range(times)]
+        rolls = [r.randint(1, scianki) for i in range(kostki)]
         odp = ''
         last_roll = rolls.pop(-1)
         try:
-            for i in range(-1, times):
+            for i in range(-1, kostki):
                 odp += f'{str(rolls[i+1])}, '
         except Exception:
             odp += f'{last_roll}\nSuma wynosi: {sum(rolls) + last_roll}'
 
-    
-        await ctx.send(odp)
         rolls.append(last_roll)
-        await ctx.send(f'Najwyższa wartość: {max(rolls)}')
+    
+        await interaction.response.send_message(
+            f'{odp}\n'
+            f'Najwyższa wartość: {max(rolls)}', ephemeral=True)
 
-@bot.command(aliases=['rm'])
-async def moneta(ctx):
+@bot.tree.command(name='moneta', description='Rzut monetą')
+async def moneta(interaction: discord.Interaction):
     moneta = r.randint(0, 1)
     if moneta == 0:
-        await ctx.channel.send('ORZEŁ')
+        await interaction.response.send_message('ORZEŁ', ephemeral=True)
     else:
-        await ctx.channel.send('RESZKA')
-
+        await interaction.response.send_message('RESZKA', ephemeral=True)
 
 
 #URUCHOMIENIE BOTA
