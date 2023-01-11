@@ -16,8 +16,7 @@ regulamin = """
 
 import os
 import discord
-from discord.ext import commands
-from discord.ext import tasks
+from discord.ext import commands, tasks
 from dotenv import load_dotenv
 import aiohttp
 import random as r
@@ -26,6 +25,10 @@ import time
 import asyncio
 import requests
 from bs4 import BeautifulSoup
+import youtube_dl
+import nacl
+import ffmpeg
+from functools import partial
 
 #openai.api_key = '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'
 
@@ -33,6 +36,8 @@ from bs4 import BeautifulSoup
 load_dotenv()
 TOKEN = os.getenv('DISCORD_TOKEN')
 GUILD = os.getenv('DISCORD_GUILD')
+login_ps = os.getenv('LOGIN_PS')
+haslo_ps = os.getenv('HASLO_PS')
 
 
 #NADANIE BOTOWI INTENT(PRAWA)
@@ -56,6 +61,8 @@ ogloszenia_id = 1046725510232809572
 admin_bot_id = 1060904715065495552
 
 
+kolejka_piosenek = []
+
 bot_status = cycle(['/help', 'KNALT', 'Smacznej Kawusi'])
 @tasks.loop(seconds=10)
 async def change_status():
@@ -70,8 +77,8 @@ async def ps_get_info():
 
     payload = {
         'licznik' : 's',
-        'login' : '285665',
-        'pass' : 'Szotland12'
+        'login' : login_ps,
+        'pass' : haslo_ps
     }
 
     response = requests.Session()
@@ -142,7 +149,7 @@ async def on_member_remove(member):
 #NADANIE RANGI CZŁONEK PRZEZ REGULAMIN
 @bot.event
 async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
-    rola_czlonek = discord.utils.get(payload.member.guild.roles, name='Czlonek')
+    rola_czlonek = discord.utils.get(payload.member.guild.roles, name='Członek')
 
     if payload.channel_id != regulamin_id:
         return
@@ -420,7 +427,7 @@ async def rps(interaction: discord.Interaction, wybor: str):
         await interaction.response.send_message('Umiesz pisać???', ephemeral=True)
 
 @bot.tree.command(name='roll', description='Rzuć x kostkami y ściennymi')
-async def roll(interaction: discord.Interaction, kostki: int, scianki: int):
+async def roll(interaction: discord.Interaction, kostki: int = 1, scianki: int = 6, add: int = 0):
     if scianki > 100:
         if kostki > 200:
             await interaction.response.send_message('Mam tylko 200 kości!\nA największa kostka to d100', ephemeral=True)
@@ -436,7 +443,7 @@ async def roll(interaction: discord.Interaction, kostki: int, scianki: int):
             for i in range(-1, kostki):
                 odp += f'{str(rolls[i+1])}, '
         except Exception:
-            odp += f'{last_roll}\nSuma wynosi: {sum(rolls) + last_roll}'
+            odp += f'{last_roll}\nSuma wynosi: {sum(rolls) + last_roll + add}'
 
         rolls.append(last_roll)
     
@@ -451,6 +458,204 @@ async def moneta(interaction: discord.Interaction):
         await interaction.response.send_message('ORZEŁ', ephemeral=True)
     else:
         await interaction.response.send_message('RESZKA', ephemeral=True)
+
+
+
+youtube_dl.utils.bug_reports_message = lambda: ''
+
+ytdl_format_options = {
+    'format': 'bestaudio/best',
+    'restrictfilenames': True,
+    'noplaylist': True,
+    'nocheckcertificate': True,
+    'ignoreerrors': False,
+    'logtostderr': False,
+    'quiet': True,
+    'no_warnings': True,
+    'default_search': 'auto',
+    'source_address': '0.0.0.0' # bind to ipv4 since ipv6 addresses cause issues sometimes
+}
+
+ffmpeg_options = {
+    'options': '-vn'
+}
+
+ytdl = youtube_dl.YoutubeDL(ytdl_format_options)
+
+class YTDLSource(discord.PCMVolumeTransformer):
+
+    def __init__(self, source, *, data, requester):
+        super().__init__(source)
+        self.requester = requester
+
+        self.title = data.get('title')
+        self.web_url = data.get('webpage_url')
+
+        # YTDL info dicts (data) have other useful information you might want
+        # https://github.com/rg3/youtube-dl/blob/master/README.md
+
+    def __getitem__(self, item: str):
+        """Allows us to access attributes similar to a dict.
+        This is only useful when you are NOT downloading.
+        """
+        return self.__getattribute__(item)
+
+    @classmethod
+    async def create_source(cls, ctx, search: str, *, loop, download=False):
+        loop = loop or asyncio.get_event_loop()
+
+        to_run = partial(ytdl.extract_info, url=search, download=download)
+        data = await loop.run_in_executor(None, to_run)
+
+        if 'entries' in data:
+            # take first item from a playlist
+            data = data['entries'][0]
+
+        await ctx.send(f'```ini\n[Added {data["title"]} to the Queue.]\n```', delete_after=15)
+
+        if download:
+            source = ytdl.prepare_filename(data)
+        else:
+            return {'webpage_url': data['webpage_url'], 'requester': ctx.author, 'title': data['title']}
+
+        return cls(discord.FFmpegPCMAudio(source), data=data, requester=ctx.author)
+
+    @classmethod
+    async def regather_stream(cls, data, *, loop):
+        """Used for preparing a stream, instead of downloading.
+        Since Youtube Streaming links expire."""
+        loop = loop or asyncio.get_event_loop()
+        requester = data['requester']
+
+        to_run = partial(ytdl.extract_info, url=data['webpage_url'], download=False)
+        data = await loop.run_in_executor(None, to_run)
+
+        return cls(discord.FFmpegPCMAudio(data['url']), data=data, requester=requester)
+
+    @classmethod
+    async def from_url(cls, url, *, loop=None, stream=False):
+        loop = loop or asyncio.get_event_loop()
+        data = await loop.run_in_executor(None, lambda: ytdl.extract_info(url, download=not stream))
+        if 'entries' in data:
+            # take first item from a playlist
+            data = data['entries'][0]
+        filename = data['title'] if stream else ytdl.prepare_filename(data)
+        return filename
+
+
+@bot.tree.command(name='join', description='Dołącza bota na kanał głosowy')
+async def join(interaction: discord.Interaction):
+    try:
+        if not interaction.user.voice:
+            await interaction.response.send_message(f'{interaction.user} nie jest połączony do voice chatu', ephemeral=True)
+            return
+        else:
+            channel = interaction.user.voice.channel
+        await channel.connect()
+        await interaction.response.send_message(f'Juz jestem', ephemeral=True)
+    except:
+        await interaction.response.send_message(f'Przeciez tu jestem', ephemeral=True)
+
+
+@bot.tree.command(name='leave', description='Bot opuszcza kanał głosowy')
+async def leave(interaction: discord.Interaction):
+    voice_client = interaction.guild.voice_client
+    if voice_client:
+        await voice_client.disconnect()
+        await interaction.response.send_message(f'Będę tęskić', ephemeral=True)
+    else:
+        await interaction.response.send_message(f'Bot nie jest na kanale głosowym', ephemeral=True)
+
+
+@bot.tree.command(name='play', description='Zagraj piosenkę')
+async def play(interaction: discord.Interaction, url : str):
+
+    def continue_playing():
+  
+        server = interaction.guild
+        voice_channel = server.voice_client
+
+        if len(kolejka_piosenek) > 0:
+            for url in kolejka_piosenek:
+                source = YTDLSource.from_url(url=url, loop=bot.loop)
+                voice_channel.play(discord.FFmpegPCMAudio(source=source), after=lambda e: continue_playing())
+                kolejka_piosenek.pop(0)
+    
+    server = interaction.guild
+    voice_channel = server.voice_client
+
+    #piosenka = await YTDLSource.from_url(url=url, loop=bot.loop)
+    piosenka = await YTDLSource.create_source()
+
+
+    if not voice_channel.is_playing():
+        voice_channel.play(discord.FFmpegPCMAudio(source=piosenka), after=lambda e: continue_playing())
+        await interaction.response.send_message(f'***{piosenka}***',ephemeral=True)
+    else:
+        voice_channel.stop()
+        voice_channel.play(discord.FFmpegPCMAudio(source=piosenka), after=lambda e: continue_playing())
+        await interaction.response.send_message(f'***{piosenka}***',ephemeral=True)
+        kolejka_piosenek.clear()
+
+
+
+
+
+@bot.tree.command(name='stop', description='Kończy grę')
+async def stop(interaction: discord.Interaction):
+    
+    server = interaction.guild
+    voice_channel = server.voice_client
+
+    if voice_channel.is_playing():
+        voice_channel.stop()
+        await interaction.response.send_message(f'Koniec gry', ephemeral=True)
+        kolejka_piosenek.clear()
+    else:
+        await interaction.response.send_message(f'Przecież ja nic nie grałem', ephemeral=True)
+    
+
+@bot.tree.command(name='resume', description='Wznawia muzykę')
+async def resume(interaction: discord.Interaction):
+    
+    server = interaction.guild
+    voice_channel = server.voice_client
+
+    if not voice_channel.is_playing():
+        voice_channel.resume()
+        await interaction.response.send_message(f'Wznawiam grę', ephemeral=True)
+    else:
+        await interaction.response.send_message(f'O co Ci chodzi, przecież ja gram', ephemeral=True)
+
+
+@bot.tree.command(name='pause', description='Zatrzymuje muzykę')
+async def pause(interaction: discord.Interaction):
+    
+    server = interaction.guild
+    voice_channel = server.voice_client
+
+    if voice_channel.is_playing():
+        voice_channel.pause()
+        await interaction.response.send_message(f'Zatrzymuję', ephemeral=True)
+    else:
+        await interaction.response.send_message(f'Przecież ja nic nie grałem', ephemeral=True)   
+
+
+@bot.tree.command(name='queue', description='Kolejkuje piosenkę')
+async def queue(interaction: discord.Interaction, url : str):
+    server = interaction.guild
+    voice_channel = server.voice_client
+
+    if voice_channel.is_playing():
+        kolejka_piosenek.append(url)
+        await interaction.response.send_message(f'Dodano do kolejki {url}', ephemeral=True)
+        await YTDLSource.from_url(url=url, loop=bot.loop)
+    else:
+        await interaction.response.send_message(f'Nie możesz dodać piosenki do kolejki, najpierw musi coś grać', ephemeral=True)
+
+
+
+    
 
 
 #URUCHOMIENIE BOTA
