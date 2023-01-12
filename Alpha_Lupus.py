@@ -28,7 +28,6 @@ from bs4 import BeautifulSoup
 import youtube_dl
 import nacl
 import ffmpeg
-from functools import partial
 
 #openai.api_key = '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'
 
@@ -41,11 +40,11 @@ haslo_ps = os.getenv('HASLO_PS')
 
 
 #NADANIE BOTOWI INTENT(PRAWA)
-intents = discord.Intents.all()
+#intents = discord.Intents.all()
 
 
 #UTWORZENIE BOTA
-bot = commands.Bot(command_prefix='/', intents=intents)
+bot = commands.Bot(command_prefix='/', intents=discord.Intents.all())
 bot.remove_command('help')
 
 
@@ -460,6 +459,35 @@ async def moneta(interaction: discord.Interaction):
         await interaction.response.send_message('RESZKA', ephemeral=True)
 
 
+'''kolory = ['blue', 'blurple', 'brand_green', 'brand_red', 'dark_blue', 'dark_gold', 'dark_gray', 'dark_green', 'dark_grey', 'dark_magenta', 'dark_orange', 'dark_purple', 'dark_red', 'dark_teal', 'darker_gray', 'darker_grey', 'fuchsia', 'gold', 'green', 'greypie', 'light_gray', 'light_grey', 'lighter_gray', 'lighter_grey', 'magenta', 'og_blurple', 'orange', 'purple', 'random', 'red', 'teal', 'yellow']
+@bot.tree.command(name='lista_kolorow', description='Wyświetla listę dostępnych kolorów dla bota')
+async def lista_kolorow(interaction: discord.Interaction):
+    kolory_str = ''
+    for kolor in kolory:
+        kolory_str += f'{kolor}\n'
+    await interaction.response.send_message(f'Lista dostępnych kolorów:\n{kolory_str}', ephemeral=True)
+'''
+@bot.tree.command(name='kolor', description='Ustaw sobie kolor [hex]')
+async def kolor(interaction: discord.Interaction, kolor: str):
+    guild = interaction.guild
+    nazwa = interaction.user.name
+    czlonek = discord.utils.get(guild.roles, name='Członek').id
+    await guild.create_role(name=nazwa, color=discord.Colour.from_str(kolor), permissions=guild.get_role(czlonek).permissions)
+    rola = discord.utils.get(interaction.guild.roles, name=nazwa)
+    await interaction.user.add_roles(rola)
+    await interaction.response.send_message(f'Gratuluję nowej rangi {nazwa}!', ephemeral=True)
+
+
+@bot.tree.command(name='zmiana_koloru', description='Kiedy stary kolor się wam znudzi')
+async def zmiana_koloru(interaction: discord.Interaction, kolor: str):
+    guild = interaction.guild
+    nazwa = interaction.user.name
+    rola = discord.utils.get(guild.roles, name=nazwa)
+    if kolor != '':
+        await rola.edit(color=discord.Colour.from_str(kolor))
+        await interaction.response.send_message(f'Kolor roli został poprawnie zmieniony!', ephemeral=True)
+    else:
+        await interaction.response.send_message(f'Niepoprawnie sformułowana komenda', ephemeral=True)
 
 youtube_dl.utils.bug_reports_message = lambda: ''
 
@@ -483,54 +511,11 @@ ffmpeg_options = {
 ytdl = youtube_dl.YoutubeDL(ytdl_format_options)
 
 class YTDLSource(discord.PCMVolumeTransformer):
-
-    def __init__(self, source, *, data, requester):
-        super().__init__(source)
-        self.requester = requester
-
+    def __init__(self, source, *, data, volume=0.5):
+        super().__init__(source, volume)
+        self.data = data
         self.title = data.get('title')
-        self.web_url = data.get('webpage_url')
-
-        # YTDL info dicts (data) have other useful information you might want
-        # https://github.com/rg3/youtube-dl/blob/master/README.md
-
-    def __getitem__(self, item: str):
-        """Allows us to access attributes similar to a dict.
-        This is only useful when you are NOT downloading.
-        """
-        return self.__getattribute__(item)
-
-    @classmethod
-    async def create_source(cls, ctx, search: str, *, loop, download=False):
-        loop = loop or asyncio.get_event_loop()
-
-        to_run = partial(ytdl.extract_info, url=search, download=download)
-        data = await loop.run_in_executor(None, to_run)
-
-        if 'entries' in data:
-            # take first item from a playlist
-            data = data['entries'][0]
-
-        await ctx.send(f'```ini\n[Added {data["title"]} to the Queue.]\n```', delete_after=15)
-
-        if download:
-            source = ytdl.prepare_filename(data)
-        else:
-            return {'webpage_url': data['webpage_url'], 'requester': ctx.author, 'title': data['title']}
-
-        return cls(discord.FFmpegPCMAudio(source), data=data, requester=ctx.author)
-
-    @classmethod
-    async def regather_stream(cls, data, *, loop):
-        """Used for preparing a stream, instead of downloading.
-        Since Youtube Streaming links expire."""
-        loop = loop or asyncio.get_event_loop()
-        requester = data['requester']
-
-        to_run = partial(ytdl.extract_info, url=data['webpage_url'], download=False)
-        data = await loop.run_in_executor(None, to_run)
-
-        return cls(discord.FFmpegPCMAudio(data['url']), data=data, requester=requester)
+        self.url = ""
 
     @classmethod
     async def from_url(cls, url, *, loop=None, stream=False):
@@ -584,8 +569,7 @@ async def play(interaction: discord.Interaction, url : str):
     server = interaction.guild
     voice_channel = server.voice_client
 
-    #piosenka = await YTDLSource.from_url(url=url, loop=bot.loop)
-    piosenka = await YTDLSource.create_source()
+    piosenka = await YTDLSource.from_url(url=url, loop=bot.loop)
 
 
     if not voice_channel.is_playing():
